@@ -1,0 +1,314 @@
+{
+    "info": {
+      "name": "Simple Chat API",
+      "description": "Chat backend: users & chats in PostgreSQL, messages & read receipts in Firestore.\n\nRun the folders top to bottom: the test scripts save userAId / userBId / userCId / chatId / messageId / groupId into collection variables automatically, so no copy-pasting of ids is needed.",
+      "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+      {"key":"baseUrl","value":"http://localhost:3000"},
+      {"key":"userAId","value":""},
+      {"key":"userBId","value":""},
+      {"key":"userCId","value":""},
+      {"key":"chatId","value":""},
+      {"key":"messageId","value":""},
+      {"key":"firstMessageId","value":""},
+      {"key":"nextCursor","value":""},
+      {"key":"groupId","value":""}
+    ],
+    "item": [
+      {
+        "name": "0. Health",
+        "item": [
+          {
+            "name": "Liveness",
+            "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Status is 200', () => pm.expect(pm.response.code).to.eql(200));"]}}],
+            "request": {"method":"GET","header":[],"url":"{{baseUrl}}/health"}
+          },
+          {
+            "name": "Readiness (checks PostgreSQL)",
+            "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Status is 200', () => pm.expect(pm.response.code).to.eql(200));"]}}],
+            "request": {"method":"GET","header":[],"url":"{{baseUrl}}/health/ready"}
+          }
+        ]
+      },
+      {
+        "name": "1. Users (setup)",
+        "item": [
+          {
+            "name": "Create user Alice",
+            "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+              "pm.test('Status is 201', () => pm.expect(pm.response.code).to.eql(201));",
+              "if (pm.response.code < 300) pm.collectionVariables.set('userAId', pm.response.json().data.id);"
+            ]}}],
+            "request": {
+              "method": "POST",
+              "header": [{"key":"Content-Type","value":"application/json"}],
+              "body": {"mode":"raw","raw":"{\n  \"name\": \"Alice\"\n}","options":{"raw":{"language":"json"}}},
+              "url": "{{baseUrl}}/user/create"
+            }
+          },
+          {
+            "name": "Create user Bob",
+            "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+              "pm.test('Status is 201', () => pm.expect(pm.response.code).to.eql(201));",
+              "if (pm.response.code < 300) pm.collectionVariables.set('userBId', pm.response.json().data.id);"
+            ]}}],
+            "request": {
+              "method": "POST",
+              "header": [{"key":"Content-Type","value":"application/json"}],
+              "body": {"mode":"raw","raw":"{\n  \"name\": \"Bob\"\n}","options":{"raw":{"language":"json"}}},
+              "url": "{{baseUrl}}/user/create"
+            }
+          },
+          {
+            "name": "Create user Charlie",
+            "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+              "pm.test('Status is 201', () => pm.expect(pm.response.code).to.eql(201));",
+              "if (pm.response.code < 300) pm.collectionVariables.set('userCId', pm.response.json().data.id);"
+            ]}}],
+            "request": {
+              "method": "POST",
+              "header": [{"key":"Content-Type","value":"application/json"}],
+              "body": {"mode":"raw","raw":"{\n  \"name\": \"Charlie\"\n}","options":{"raw":{"language":"json"}}},
+              "url": "{{baseUrl}}/user/create"
+            }
+          },
+          {
+            "name": "Get user",
+            "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Status is 200', () => pm.expect(pm.response.code).to.eql(200));"]}}],
+            "request": {"method":"GET","header":[],"url":"{{baseUrl}}/user/{{userAId}}"}
+          }
+        ]
+      },
+      {
+        "name": "2. Chats",
+        "item": [
+          {
+            "name": "Create or Get Chat (1:1)",
+            "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+              "pm.test('Status is 201', () => pm.expect(pm.response.code).to.eql(201));",
+              "if (pm.response.code < 300) pm.collectionVariables.set('chatId', pm.response.json().data.chatId);"
+            ]}}],
+            "request": {
+              "method": "POST",
+              "header": [{"key":"Content-Type","value":"application/json"}],
+              "body": {"mode":"raw","raw":"{\n  \"userAId\": \"{{userAId}}\",\n  \"userBId\": \"{{userBId}}\"\n}","options":{"raw":{"language":"json"}}},
+              "url": "{{baseUrl}}/chat/create",
+              "description": "Returns 201 when the chat is created, 200 when it already exists. Order of users does not matter."
+            }
+          },
+          {
+            "name": "Create or Get Chat (again, reversed -> same chatId)",
+            "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+              "pm.test('Status is 200', () => pm.expect(pm.response.code).to.eql(200));",
+              "pm.test('Same chatId returned', () => pm.expect(pm.response.json().data.chatId).to.eql(pm.collectionVariables.get('chatId')));"
+            ]}}],
+            "request": {
+              "method": "POST",
+              "header": [{"key":"Content-Type","value":"application/json"}],
+              "body": {"mode":"raw","raw":"{\n  \"userAId\": \"{{userBId}}\",\n  \"userBId\": \"{{userAId}}\"\n}","options":{"raw":{"language":"json"}}},
+              "url": "{{baseUrl}}/chat/create"
+            }
+          },
+          {
+            "name": "Get chat details",
+            "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Status is 200', () => pm.expect(pm.response.code).to.eql(200));"]}}],
+            "request": {"method":"GET","header":[],"url":"{{baseUrl}}/chat/{{chatId}}"}
+          },
+          {
+            "name": "List User Chats",
+            "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Status is 200', () => pm.expect(pm.response.code).to.eql(200));"]}}],
+            "request": {"method":"GET","header":[],"url":"{{baseUrl}}/user/{{userAId}}/chats?limit=20&offset=0"}
+          }
+        ]
+      },
+      {
+        "name": "3. Messages",
+        "item": [
+          {
+            "name": "Send Message (Alice)",
+            "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+              "pm.test('Status is 201', () => pm.expect(pm.response.code).to.eql(201));",
+              "if (pm.response.code < 300) pm.collectionVariables.set('firstMessageId', pm.response.json().data.id);"
+            ]}}],
+            "request": {
+              "method": "POST",
+              "header": [{"key":"Content-Type","value":"application/json"}],
+              "body": {"mode":"raw","raw":"{\n  \"senderId\": \"{{userAId}}\",\n  \"text\": \"Hi Bob!\"\n}","options":{"raw":{"language":"json"}}},
+              "url": "{{baseUrl}}/chat/{{chatId}}/message/send"
+            }
+          },
+          {
+            "name": "Send Message (Bob)",
+            "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+              "pm.test('Status is 201', () => pm.expect(pm.response.code).to.eql(201));",
+              "if (pm.response.code < 300) pm.collectionVariables.set('messageId', pm.response.json().data.id);"
+            ]}}],
+            "request": {
+              "method": "POST",
+              "header": [{"key":"Content-Type","value":"application/json"}],
+              "body": {"mode":"raw","raw":"{\n  \"senderId\": \"{{userBId}}\",\n  \"text\": \"Hey Alice, how are you?\"\n}","options":{"raw":{"language":"json"}}},
+              "url": "{{baseUrl}}/chat/{{chatId}}/message/send"
+            }
+          },
+          {
+            "name": "Send Message (non-member -> 403)",
+            "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Status is 403', () => pm.expect(pm.response.code).to.eql(403));"]}}],
+            "request": {
+              "method": "POST",
+              "header": [{"key":"Content-Type","value":"application/json"}],
+              "body": {"mode":"raw","raw":"{\n  \"senderId\": \"{{userCId}}\",\n  \"text\": \"Let me in\"\n}","options":{"raw":{"language":"json"}}},
+              "url": "{{baseUrl}}/chat/{{chatId}}/message/send"
+            }
+          },
+          {
+            "name": "Get Messages",
+            "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+              "pm.test('Status is 200', () => pm.expect(pm.response.code).to.eql(200));",
+              "pm.test('Ordered by timestamp', () => { const m = pm.response.json().data.messages; for (let i = 1; i < m.length; i++) pm.expect(new Date(m[i].createdAt) >= new Date(m[i-1].createdAt)).to.be.true; });"
+            ]}}],
+            "request": {"method":"GET","header":[],"url":"{{baseUrl}}/chat/{{chatId}}/messages?limit=50"}
+          },
+          {
+            "name": "Get Messages (paginated, page 1)",
+            "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+              "pm.test('Status is 200', () => pm.expect(pm.response.code).to.eql(200));",
+              "if (pm.response.code < 300) pm.collectionVariables.set('nextCursor', pm.response.json().data.nextCursor || '');"
+            ]}}],
+            "request": {"method":"GET","header":[],"url":"{{baseUrl}}/chat/{{chatId}}/messages?limit=1"}
+          },
+          {
+            "name": "Get Messages (paginated, older page)",
+            "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Status is 200', () => pm.expect(pm.response.code).to.eql(200));"]}}],
+            "request": {"method":"GET","header":[],"url":"{{baseUrl}}/chat/{{chatId}}/messages?limit=1&before={{nextCursor}}"}
+          }
+        ]
+      },
+      {
+        "name": "4. Read receipts & last seen",
+        "item": [
+          {
+            "name": "Mark Message Read (Bob reads Alice's message)",
+            "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Status is 200', () => pm.expect(pm.response.code).to.eql(200));"]}}],
+            "request": {
+              "method": "POST",
+              "header": [{"key":"Content-Type","value":"application/json"}],
+              "body": {"mode":"raw","raw":"{\n  \"userId\": \"{{userBId}}\"\n}","options":{"raw":{"language":"json"}}},
+              "url": "{{baseUrl}}/chat/{{chatId}}/message/{{firstMessageId}}/read",
+              "description": "Idempotent: calling again returns alreadyRead: true and the original readAt."
+            }
+          },
+          {
+            "name": "Update Last Seen Message",
+            "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Status is 200', () => pm.expect(pm.response.code).to.eql(200));"]}}],
+            "request": {
+              "method": "POST",
+              "header": [{"key":"Content-Type","value":"application/json"}],
+              "body": {"mode":"raw","raw":"{\n  \"userId\": \"{{userAId}}\",\n  \"messageId\": \"{{messageId}}\"\n}","options":{"raw":{"language":"json"}}},
+              "url": "{{baseUrl}}/chat/{{chatId}}/lastseen",
+              "description": "Forward-only: pointing at an older message returns updated: false."
+            }
+          },
+          {
+            "name": "Get Last Seen (all members)",
+            "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Status is 200', () => pm.expect(pm.response.code).to.eql(200));"]}}],
+            "request": {"method":"GET","header":[],"url":"{{baseUrl}}/chat/{{chatId}}/lastseen"}
+          }
+        ]
+      },
+      {
+        "name": "5. Bonus - Edit / Delete",
+        "item": [
+          {
+            "name": "Edit Message (sender only)",
+            "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Status is 200', () => pm.expect(pm.response.code).to.eql(200));"]}}],
+            "request": {
+              "method": "PATCH",
+              "header": [{"key":"Content-Type","value":"application/json"}],
+              "body": {"mode":"raw","raw":"{\n  \"userId\": \"{{userBId}}\",\n  \"text\": \"Hey Alice, how are you doing?\"\n}","options":{"raw":{"language":"json"}}},
+              "url": "{{baseUrl}}/chat/{{chatId}}/message/{{messageId}}"
+            }
+          },
+          {
+            "name": "Edit Message (not sender -> 403)",
+            "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Status is 403', () => pm.expect(pm.response.code).to.eql(403));"]}}],
+            "request": {
+              "method": "PATCH",
+              "header": [{"key":"Content-Type","value":"application/json"}],
+              "body": {"mode":"raw","raw":"{\n  \"userId\": \"{{userAId}}\",\n  \"text\": \"Not my message\"\n}","options":{"raw":{"language":"json"}}},
+              "url": "{{baseUrl}}/chat/{{chatId}}/message/{{messageId}}"
+            }
+          },
+          {
+            "name": "Delete Message (soft delete)",
+            "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Status is 200', () => pm.expect(pm.response.code).to.eql(200));"]}}],
+            "request": {
+              "method": "DELETE",
+              "header": [{"key":"Content-Type","value":"application/json"}],
+              "body": {"mode":"raw","raw":"{\n  \"userId\": \"{{userBId}}\"\n}","options":{"raw":{"language":"json"}}},
+              "url": "{{baseUrl}}/chat/{{chatId}}/message/{{messageId}}"
+            }
+          }
+        ]
+      },
+      {
+        "name": "6. Bonus - Group chats",
+        "item": [
+          {
+            "name": "Create Group",
+            "event": [{"listen":"test","script":{"type":"text/javascript","exec":[
+              "pm.test('Status is 201', () => pm.expect(pm.response.code).to.eql(201));",
+              "if (pm.response.code < 300) pm.collectionVariables.set('groupId', pm.response.json().data.id);"
+            ]}}],
+            "request": {
+              "method": "POST",
+              "header": [{"key":"Content-Type","value":"application/json"}],
+              "body": {"mode":"raw","raw":"{\n  \"creatorId\": \"{{userAId}}\",\n  \"name\": \"Project Team\",\n  \"memberIds\": [\n    \"{{userBId}}\"\n  ]\n}","options":{"raw":{"language":"json"}}},
+              "url": "{{baseUrl}}/chat/group/create"
+            }
+          },
+          {
+            "name": "Rename Group (admin only)",
+            "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Status is 200', () => pm.expect(pm.response.code).to.eql(200));"]}}],
+            "request": {
+              "method": "PATCH",
+              "header": [{"key":"Content-Type","value":"application/json"}],
+              "body": {"mode":"raw","raw":"{\n  \"actorId\": \"{{userAId}}\",\n  \"name\": \"Project Team X\"\n}","options":{"raw":{"language":"json"}}},
+              "url": "{{baseUrl}}/chat/{{groupId}}"
+            }
+          },
+          {
+            "name": "Add Members (admin only)",
+            "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Status is 200', () => pm.expect(pm.response.code).to.eql(200));"]}}],
+            "request": {
+              "method": "POST",
+              "header": [{"key":"Content-Type","value":"application/json"}],
+              "body": {"mode":"raw","raw":"{\n  \"actorId\": \"{{userAId}}\",\n  \"userIds\": [\n    \"{{userCId}}\"\n  ]\n}","options":{"raw":{"language":"json"}}},
+              "url": "{{baseUrl}}/chat/{{groupId}}/members"
+            }
+          },
+          {
+            "name": "Send Group Message",
+            "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Status is 201', () => pm.expect(pm.response.code).to.eql(201));"]}}],
+            "request": {
+              "method": "POST",
+              "header": [{"key":"Content-Type","value":"application/json"}],
+              "body": {"mode":"raw","raw":"{\n  \"senderId\": \"{{userCId}}\",\n  \"text\": \"Hello team!\"\n}","options":{"raw":{"language":"json"}}},
+              "url": "{{baseUrl}}/chat/{{groupId}}/message/send"
+            }
+          },
+          {
+            "name": "Remove Member / Leave",
+            "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test('Status is 204', () => pm.expect(pm.response.code).to.eql(204));"]}}],
+            "request": {
+              "method": "DELETE",
+              "header": [{"key":"Content-Type","value":"application/json"}],
+              "body": {"mode":"raw","raw":"{\n  \"actorId\": \"{{userCId}}\"\n}","options":{"raw":{"language":"json"}}},
+              "url": "{{baseUrl}}/chat/{{groupId}}/members/{{userCId}}",
+              "description": "Admins can remove anyone; members can remove themselves (leave)."
+            }
+          }
+        ]
+      }
+    ]
+  }
